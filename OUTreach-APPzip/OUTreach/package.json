@@ -1,0 +1,38 @@
+{
+  "name": "outreach!-de",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"node server.js\" \"vite\"",
+    "dev:frontend": "vite",
+    "dev:backend": "node server.js",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "@tanstack/react-query": "^5.90.10",
+    "better-sqlite3": "^12.4.6",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "docx": "^9.5.1",
+    "express": "^5.1.0",
+    "framer-motion": "^12.23.24",
+    "googleapis": "^166.0.0",
+    "lucide-react": "^0.554.0",
+    "multer": "^2.0.2",
+    "node-fetch": "^2.7.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "terser": "^5.44.1",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

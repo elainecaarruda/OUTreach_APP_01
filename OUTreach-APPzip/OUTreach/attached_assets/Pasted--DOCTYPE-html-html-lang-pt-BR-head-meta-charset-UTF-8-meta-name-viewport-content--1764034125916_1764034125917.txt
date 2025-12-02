@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulário de Contato</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+    }
+    form {
+      background-color: #fff;
+      padding: 20px 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 350px;
+      margin-right: 20px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .checkbox-group input {
+      width: auto;
+      margin-right: 5px;
+    }
+    .error {
+      color: red;
+      font-size: 0.9em;
+      margin-top: 2px;
+      white-space: pre-line;
+    }
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #map {
+      width: 400px;
+      height: 400px;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <form id="contactForm">
+    <h2>Formulário de Contato</h2>
+
+    <label for="nome">Nome *</label>
+    <input type="text" id="nome" name="nome" placeholder="Nome completo" required>
+
+    <label for="nacionalidade">Nacionalidade *</label>
+    <input type="text" id="nacionalidade" name="nacionalidade" placeholder="Ex: Brasil" required>
+
+    <div class="checkbox-group">
+      <input type="checkbox" id="europa" name="europa">
+      <label for="europa">Morando na Europa</label>
+    </div>
+
+    <div class="checkbox-group">
+      <input type="checkbox" id="jesus" name="jesus">
+      <label for="jesus">Nunca ouviu falar de Jesus</label>
+    </div>
+
+    <label for="religiao">Religião</label>
+    <select id="religiao" name="religiao">
+      <option value="">Selecione a religião</option>
+      <option value="catolica">Católica</option>
+      <option value="protestante">Protestante</option>
+      <option value="espirita">Espirita</option>
+      <option value="outra">Outra</option>
+    </select>
+
+    <label for="telefone">Telefone/WhatsApp</label>
+    <input type="text" id="telefone" name="telefone" placeholder="+55 (11) 91234-5678">
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" placeholder="exemplo@email.com">
+
+    <label for="instagram">Instagram</label>
+    <input type="text" id="instagram" name="instagram" placeholder="@usuario">
+
+    <label for="endereco">Endereço</label>
+    <input type="text" id="endereco" name="endereco" placeholder="Rua, número, cidade">
+
+    <div class="error" id="errorMsg"></div>
+
+    <button type="submit">Enviar</button>
+  </form>
+
+  <div id="map"></div>
+
+  <script>
+    const form = document.getElementById('contactForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const enderecoInput = document.getElementById('endereco');
+
+    form.addEventListener('submit', function(event) {
+      errorMsg.textContent = '';
+      let valid = true;
+
+      const telefone = document.getElementById('telefone').value.trim();
+      const instagram = document.getElementById('instagram').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      const telefoneRegex = /^\+\d{1,3}\s\(\d{1,3}\)\s\d{4,5}-\d{4}$/;
+      if (telefone && !telefoneRegex.test(telefone)) {
+        valid = false;
+        errorMsg.textContent += 'Telefone inválido. Formato: +55 (11) 91234-5678\n';
+      }
+
+      if (instagram && !/^@/.test(instagram)) {
+        valid = false;
+        errorMsg.textContent += 'Instagram inválido. Deve começar com @\n';
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (email && !emailRegex.test(email)) {
+        valid = false;
+        errorMsg.textContent += 'Email inválido.\n';
+      }
+
+      if (!valid) {
+        event.preventDefault();
+      }
+    });
+
+    // Função do Google Maps
+    let map;
+    let geocoder;
+    function initMap() {
+      geocoder = new google.maps.Geocoder();
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 4,
+        center: { lat: -15.7942, lng: -47.8822 } // Brasil como centro inicial
+      });
+    }
+
+    // Atualiza mapa ao digitar endereço
+    enderecoInput.addEventListener('change', () => {
+      const address = enderecoInput.value;
+      if (!address) return;
+
+      geocoder.geocode({ address: address }, (results, status) => {
+        if (status === "OK") {
+          map.setCenter(results[0].geometry.location);
+          new google.maps.Marker({
+            map: map,
+            position: results[0].geometry.location
+          });
+        } else {
+          alert("Endereço não encontrado: " + status);
+        }
+      });
+    });
+  </script>
+
+  <!-- Substitua YOUR_API_KEY pelo seu código real do Google Maps -->
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap">
+  </script>
+</body>
+</html>

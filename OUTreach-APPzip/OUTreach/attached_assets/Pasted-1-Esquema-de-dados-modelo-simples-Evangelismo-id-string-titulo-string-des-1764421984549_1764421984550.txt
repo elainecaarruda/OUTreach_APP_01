@@ -1,0 +1,333 @@
+1) Esquema de dados (modelo simples)
+
+Evangelismo:
+
+{
+  "id": "string",
+  "titulo": "string",
+  "descricao": "string",
+  "data": "YYYY-MM-DD",
+  "horario": "HH:mm",
+  "local": "string",
+  "status": "aberto|em_andamento|encerrado",
+  "materiaisNecessarios": ["Panfletos","Biblia"],
+  "grupoWhatsapp": "https://...",
+  "vagas": { "evangelista": 10, "intercessor": 5, "lider": 1 }
+}
+
+
+Aplicacao:
+
+{
+  "id": "string",
+  "evangelismoId": "string",
+  "userId": "string",
+  "userName": "string",
+  "tipo": "evangelista|intercessor|lider",
+  "status": "pendente|aprovado|recusado",
+  "createdAt": "ISO"
+}
+
+2) Rotas essenciais (prioridade 0)
+
+POST /admin/evangelismos — criar evangelismo (ADM)
+
+GET /evangelismos — listar mural (filtro ?status=aberto)
+
+GET /evangelismos/:id — detalhes
+
+POST /evangelismos/:id/apply — aplicar (qual tipo: evangelista/intercessor/lider)
+
+GET /admin/evangelismos/:id/aplicacoes — ver candidaturas (ADM / líder)
+
+PATCH /admin/aplicacoes/:id — aprovar/recusar candidatura (ADM)
+
+PATCH /admin/evangelismos/:id/materiais — definir materiais (ADM)
+
+PATCH /lider/evangelismos/:id/materiais — líder marca o que vai levar
+
+Autenticação mínima: usar header x-user-role: admin|lider|user e x-user-id / x-user-name para testes.
+
+3) Servidor Express completo (copiar em index.js no Replit)
+// index.js
+const express = require("express");
+const cors = require("cors");
+const { v4: uuid } = require("uuid");
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Simples "DB" em memória
+const evangelismos = [];
+const aplicacoes = [];
+
+// middleware de role simples (para dev)
+function requireRole(...allowed) {
+  return (req, res, next) => {
+    const role = (req.header("x-user-role") || "user");
+    if (!allowed.includes(role)) {
+      return res.status(403).json({ error: "Forbidden: role" });
+    }
+    req.user = {
+      id: req.header("x-user-id") || "anon",
+      name: req.header("x-user-name") || "Anon",
+      role
+    };
+    next();
+  };
+}
+
+/*
+  POST /admin/evangelismos
+  body: { titulo, descricao, data, horario, local, vagas, materiaisNecessarios, grupoWhatsapp }
+*/
+app.post("/admin/evangelismos", requireRole("admin"), (req, res) => {
+  const { titulo, descricao, data, horario, local, vagas = {}, materiaisNecessarios = [], grupoWhatsapp = "" } = req.body;
+  const novo = {
+    id: uuid(),
+    titulo,
+    descricao,
+    data,
+    horario,
+    local,
+    status: "aberto",
+    materiaisNecessarios,
+    grupoWhatsapp,
+    vagas: {
+      evangelista: vagas.evangelista || 999,
+      intercessor: vagas.intercessor || 999,
+      lider: vagas.lider || 1
+    },
+    createdAt: new Date().toISOString(),
+    materiaisResponsaveis: {} // { userId: [materiais...] } - preencher por lider
+  };
+  evangelismos.push(novo);
+  return res.status(201).json(novo);
+});
+
+// GET /evangelismos?status=aberto
+app.get("/evangelismos", (req, res) => {
+  const status = req.query.status;
+  let list = [...evangelismos];
+  if (status) list = list.filter(e => e.status === status);
+  return res.json(list);
+});
+
+// GET details
+app.get("/evangelismos/:id", (req, res) => {
+  const e = evangelismos.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Not found" });
+  // include aplicacoes count
+  const related = aplicacoes.filter(a => a.evangelismoId === e.id);
+  const stats = {
+    total: related.length,
+    porTipo: {
+      evangelista: related.filter(r => r.tipo === "evangelista").length,
+      intercessor: related.filter(r => r.tipo === "intercessor").length,
+      lider: related.filter(r => r.tipo === "lider").length
+    }
+  };
+  return res.json({ ...e, stats, aplicacoes: related });
+});
+
+// POST apply
+/*
+  POST /evangelismos/:id/apply
+  body: { tipo: "evangelista"|"intercessor"|"lider" }
+  headers: x-user-id, x-user-name
+*/
+app.post("/evangelismos/:id/apply", (req, res) => {
+  const e = evangelismos.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Not found" });
+
+  const tipo = req.body.tipo;
+  if (!["evangelista","intercessor","lider"].includes(tipo)) return res.status(400).json({ error: "invalid tipo" });
+
+  const userId = req.header("x-user-id") || uuid();
+  const userName = req.header("x-user-name") || "Anon";
+
+  // optional: check vagas
+  const currentlyApproved = aplicacoes.filter(a => a.evangelismoId === e.id && a.tipo === tipo && a.status === "aprovado").length;
+  if (currentlyApproved >= (e.vagas[tipo] || 999)) {
+    return res.status(400).json({ error: "Vagas esgotadas para esse tipo" });
+  }
+
+  const a = {
+    id: uuid(),
+    evangelismoId: e.id,
+    userId,
+    userName,
+    tipo,
+    status: "pendente",
+    createdAt: new Date().toISOString()
+  };
+  aplicacoes.push(a);
+  return res.status(201).json(a);
+});
+
+// ADMIN: listar candidaturas de um evangelismo
+app.get("/admin/evangelismos/:id/aplicacoes", requireRole("admin", "lider"), (req, res) => {
+  const e = evangelismos.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Not found" });
+
+  // if role is lider: optionally allow limited view (for now allow)
+  const list = aplicacoes.filter(a => a.evangelismoId === e.id);
+  return res.json(list);
+});
+
+// ADMIN aprova/recusa aplicacao
+app.patch("/admin/aplicacoes/:id", requireRole("admin"), (req, res) => {
+  const a = aplicacoes.find(x => x.id === req.params.id);
+  if (!a) return res.status(404).json({ error: "Not found" });
+  const newStatus = req.body.status;
+  if (!["aprovado","recusado","pendente"].includes(newStatus)) return res.status(400).json({ error: "status invalid" });
+  a.status = newStatus;
+  a.updatedAt = new Date().toISOString();
+  return res.json(a);
+});
+
+// ADMIN define materiais para evangelismo
+app.patch("/admin/evangelismos/:id/materiais", requireRole("admin"), (req, res) => {
+  const e = evangelismos.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Not found" });
+  const materiais = Array.isArray(req.body.materiais) ? req.body.materiais : [];
+  e.materiaisNecessarios = materiais;
+  e.updatedAt = new Date().toISOString();
+  return res.json(e);
+});
+
+// LIDER marca materiais que ele pode levar
+app.patch("/lider/evangelismos/:id/materiais", requireRole("lider"), (req, res) => {
+  const e = evangelismos.find(x => x.id === req.params.id);
+  if (!e) return res.status(404).json({ error: "Not found" });
+  const materiaisQueLevo = Array.isArray(req.body.materiais) ? req.body.materiais : [];
+  const userId = req.header("x-user-id") || "lider-anon";
+  e.materiaisResponsaveis[userId] = materiaisQueLevo;
+  return res.json({ evangelismoId: e.id, materiaisResponsaveis: e.materiaisResponsaveis });
+});
+
+// seed demo
+(function seed() {
+  evangelismos.push({
+    id: "demo-1",
+    titulo: "Evangelismo no Centro",
+    descricao: "Evangelismo de rua no centro da cidade. Foco em oração e partilha do evangelho.",
+    data: "2025-12-01",
+    horario: "19:00",
+    local: "Praça Central",
+    status: "aberto",
+    materiaisNecessarios: ["Panfletos","Bíblias pequenas","Água"],
+    grupoWhatsapp: "https://chat.whatsapp.com/exemplo",
+    vagas: { evangelista: 10, intercessor: 4, lider: 1 },
+    materiaisResponsaveis: {}
+  });
+})();
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Server running on port", PORT));
+
+
+Como testar no Replit: lança o projeto com node index.js. No Replit a PORT externa corresponde à URL do seu app.
+
+4) Componentes React / exemplos de Fetch
+
+Cola estes snippets no teu frontend (por exemplo EvangelismoList.jsx e AdminCreate.jsx). Estes são mínimos — depois a gente transforma em tuas telas com o layout.
+
+EvangelismoList.jsx
+
+import React, { useEffect, useState } from "react";
+
+const API = "https://<SEU-REPLIT-URL>";
+
+export default function EvangelismoList(){
+  const [list, setList] = useState([]);
+  useEffect(()=> {
+    fetch(`${API}/evangelismos?status=aberto`)
+      .then(r => r.json())
+      .then(setList)
+      .catch(console.error);
+  }, []);
+
+  const apply = async (id, tipo) => {
+    const res = await fetch(`${API}/evangelismos/${id}/apply`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": "user-123",
+        "x-user-name": "Maria",
+        "x-user-role": "user"
+      },
+      body: JSON.stringify({ tipo })
+    });
+    const data = await res.json();
+    alert("Aplicação realizada: " + JSON.stringify(data));
+  };
+
+  return (
+    <div>
+      <h2>Evangelismos Abertos</h2>
+      {list.map(ev => (
+        <div key={ev.id} style={{border:"1px solid #eee", padding:20, marginBottom:10}}>
+          <div style={{display:"flex", justifyContent:"space-between"}}>
+            <div>
+              <h3>{ev.titulo}</h3>
+              <p>{ev.descricao}</p>
+              <small>{ev.data} · {ev.horario} · {ev.local}</small>
+            </div>
+            <div>
+              <button onClick={() => apply(ev.id, "evangelista")}>Aplicar Evangelista</button>
+              <button onClick={() => apply(ev.id, "intercessor")}>Aplicar Intercessor</button>
+              <button onClick={() => apply(ev.id, "lider")}>Aplicar Líder</button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+AdminCreate.jsx
+
+import React, { useState } from "react";
+const API = "https://<SEU-REPLIT-URL>";
+
+export default function AdminCreate(){
+  const [titulo, setTitulo] = useState("");
+  const [data, setData] = useState("");
+  const [horario, setHorario] = useState("");
+  const [local, setLocal] = useState("");
+  const [descricao, setDescricao] = useState("");
+
+  const criar = async () => {
+    const body = { titulo, data, horario, local, descricao, vagas: {evangelista: 10, intercessor: 5, lider: 1} };
+    const res = await fetch(`${API}/admin/evangelismos`, {
+      method: "POST",
+      headers: {
+        "Content-Type":"application/json",
+        "x-user-role":"admin",
+        "x-user-id":"admin-1",
+        "x-user-name":"Admin"
+      },
+      body: JSON.stringify(body)
+    });
+    const dataRes = await res.json();
+    alert("Criado: " + JSON.stringify(dataRes));
+  };
+
+  return (
+    <div>
+      <h3>Criar Evangelismo (Admin)</h3>
+      <input placeholder="Título" value={titulo} onChange={e=>setTitulo(e.target.value)} /><br/>
+      <input placeholder="Data YYYY-MM-DD" value={data} onChange={e=>setData(e.target.value)} /><br/>
+      <input placeholder="Horário HH:mm" value={horario} onChange={e=>setHorario(e.target.value)} /><br/>
+      <input placeholder="Local" value={local} onChange={e=>setLocal(e.target.value)} /><br/>
+      <textarea placeholder="Descrição" value={descricao} onChange={e=>setDescricao(e.target.value)} /><br/>
+      <button onClick={criar}>Criar</button>
+    </div>
+  );
+}
+
+
+Substitui API pela URL do teu Replit.

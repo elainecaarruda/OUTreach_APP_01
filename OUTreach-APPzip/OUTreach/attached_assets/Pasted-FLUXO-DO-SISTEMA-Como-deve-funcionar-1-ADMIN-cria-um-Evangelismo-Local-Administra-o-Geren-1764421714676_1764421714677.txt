@@ -1,0 +1,213 @@
+FLUXO DO SISTEMA — Como deve funcionar
+🔵 1. ADMIN cria um Evangelismo
+
+Local: Administração → Gerenciar Evangelismos
+
+Quando criar, deve ter:
+
+título
+
+data
+
+horário
+
+local
+
+descrição
+
+limite de vagas (intercessão / evangelismo / liderança)
+
+status: aberto (por padrão)
+
+👉 Depois de criado, automaticamente aparece na página “Evangelismo” (mural).
+
+🟢 2. Página “Evangelismo” (Mural para os usuários)
+
+Usuários que podem aplicar:
+
+Intercessor
+
+Evangelista
+
+Líder de Evangelismo
+
+Eles veem:
+
+Lista de evangelismos abertos
+
+Data, horário, local
+
+Vagas disponíveis
+
+Botão Aplicar
+
+Eles não veem as opções avançadas (materiais, aprovação etc).
+
+🟣 3. Ao entrar nos “Detalhes” do Evangelismo
+
+Cada perfil vê coisas diferentes.
+
+🔶 Para Usuários Normais (Evangelista / Intercessor / Líder que ainda não foi aprovado)
+
+Eles veem:
+
+Horário
+
+Local
+
+Descrição
+
+Status (aberto)
+
+Número de participantes
+
+Botão Aplicar
+
+E nada mais.
+
+🔷 Para o Líder de Equipe (designado ou aprovado pelo ADM)
+
+Eles veem área restrita:
+
+👉 1. Materiais necessários
+
+ADM marcou a lista → Líder pode marcar o que ele poderá levar.
+
+Exemplo:
+
+☑ Panfletos (ADM marcou)
+  ☐ Eu posso levar (Líder marca)
+
+👉 2. Comunicação
+
+Link do grupo do WhatsApp da equipe
+
+👉 3. Status da equipe
+
+Lista dos inscritos (pendentes / aprovados)
+
+Possibilidade de recomendar ao ADM quem aprovar
+
+🔶 Para o ADMIN nos Detalhes do Evangelismo
+
+ADM vê tudo:
+
+1. Aprovar equipe
+
+Lista dividida:
+
+Evangelistas (pendentes)
+
+Intercessores (pendentes)
+
+Líder (pendente)
+
+Cada um com:
+
+Aprovar | Recusar
+
+2. Materiais para o evangelismo
+
+ADM escolhe o que será necessário:
+
+[ ] Panfletos
+[ ] Bíblias
+[ ] Água
+[ ] Kit primeiros socorros
+[ ] Caixa de som
+[ ] Cartazes
+[ ] Tendas / guarda-chuva
+...
+
+3. Comunicação
+
+ADM define link de WhatsApp
+
+Líder vê → usuários não
+
+4. Editar evangelismo
+
+Título, data, local, status etc.
+
+🧱 ARQUITETURA NECESSÁRIA PARA FUNCIONAR
+
+Para ficar bem claro:
+
+⭐ Backend precisa ter:
+1. Tabela / coleção EVANGELISMOS
+id
+titulo
+local
+data
+horario
+descricao
+status (aberto, em andamento, encerrado)
+materiaisNecessarios: []
+grupoWhatsapp
+vagasEvangelistas
+vagasIntercessores
+vagasLider
+
+2. Tabela APLICACOES
+id
+evangelismoId
+userId
+tipo (evangelista, intercessor, lider)
+status (pendente, aprovado, recusado)
+
+3. Rota para ADMIN criar evangelismo
+
+POST /admin/evangelismos
+
+4. Rota pública para listar mural
+
+GET /evangelismos?status=aberto
+
+5. Rota para aplicar
+
+POST /evangelismos/:id/apply
+
+6. Rota para ADM aprovar
+
+PATCH /admin/aplicacoes/:id
+
+7. Rota para ADM definir materiais
+
+PATCH /admin/evangelismos/:id/materiais
+
+8. Rota para líder marcar o que vai levar
+
+PATCH /lider/evangelismos/:id/materiais
+
+🖥️ Interface — Resumo da Navegação
+ADMIN
+
+Criar evangelismo
+
+Editar
+
+Ver inscrições
+
+Aprovar equipe
+
+Definir materiais
+
+Colocar link WhatsApp
+
+Líder
+
+Ver inscritos
+
+Ver materiais definidos pelo ADM
+
+Marcar o que vai trazer
+
+Ver link do WhatsApp
+
+Evangelista / Intercessor
+
+Ver mural
+
+Ver detalhes
+
+Aplicar

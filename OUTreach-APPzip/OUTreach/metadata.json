@@ -1,0 +1,7 @@
+{
+  "name": "OUTreach! DE",
+  "description": "Eine umfassende Plattform für Evangelisationsmanagement, Gebetsfürbitte und Dienste-Koordination. Verbindung von Leitern und Evangelisten zur Verbreitung des Evangeliums.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

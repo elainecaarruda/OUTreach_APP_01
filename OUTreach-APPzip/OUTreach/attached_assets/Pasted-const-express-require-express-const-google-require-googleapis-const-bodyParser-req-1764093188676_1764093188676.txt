@@ -1,0 +1,317 @@
+const express = require('express');
+const { google } = require('googleapis');
+const bodyParser = require('body-parser');
+const multer = require('multer');
+const { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } = require('docx');
+const stream = require('stream');
+
+const app = express();
+const port = 3000;
+
+// Configuração do Multer para lidar com uploads (armazena em memória)
+const upload = multer({ storage: multer.memoryStorage() });
+
+// --- Variáveis de Ambiente e Autenticação Google Drive ---
+
+// As credenciais devem ser carregadas das variáveis de ambiente de forma segura
+const SERVICE_ACCOUNT_EMAIL = process.env.SERVICE_ACCOUNT_EMAIL;
+// A chave privada pode precisar quebrar de linha reais se for carregada de uma variável de ambiente do Replit
+const SERVICE_ACCOUNT_PRIVATE_KEY = process.env.SERVICE_ACCOUNT_PRIVATE_KEY ? 
+    process.env.SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n') : null;
+const ROOT_DRIVE_FOLDER_ID = process.env.ROOT_DRIVE_FOLDER_ID;
+
+if (!SERVICE_ACCOUNT_EMAIL || !SERVICE_ACCOUNT_PRIVATE_KEY || !ROOT_DRIVE_FOLDER_ID) {
+    console.error("ERRO: As variáveis de ambiente do Google Drive (SERVICE_ACCOUNT_EMAIL, SERVICE_ACCOUNT_PRIVATE_KEY, ROOT_DRIVE_FOLDER_ID) devem ser definidas.");
+    process.exit(1);
+}
+
+// 1. Configuração da Autenticação (Service Account)
+const auth = new google.auth.GoogleAuth({
+    credentials: {
+        client_email: SERVICE_ACCOUNT_EMAIL,
+        private_key: SERVICE_ACCOUNT_PRIVATE_KEY,
+    },
+    // Scopes necessários para criação de pastas e upload de arquivos
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+});
+
+const drive = google.drive({ version: 'v3', auth });
+
+// --- Simulação de Banco de Dados em Memória ---
+// Na sua aplicação real, substitua isso por uma integração com o Firestore ou outro DB.
+const db = {
+    evangelismos: {
+        // Exemplo: 'e1': { id: 'e1', titulo: 'Evangelismo na Praça', data: '2025-11-25', driveFolderId: '...' }
+    },
+    testemunhos: {
+        // Exemplo: 't1': { evangelismoId: 'e1', titulo: 'Cura', driveFolderId: '...', subFolderIds: { photo: '...', videos: '...', footshoot: '...' } }
+    },
+    nextEvangelismoId: 1,
+    nextTestemunhoId: 1
+};
+
+
+// --- Funções Auxiliares do Google Drive ---
+
+/**
+ * Cria uma pasta no Google Drive.
+ * @param {string} folderName O nome da nova pasta.
+ * @param {string} parentId O ID da pasta pai.
+ * @returns {string} O ID da pasta criada.
+ */
+async function createFolder(folderName, parentId) {
+    console.log(`Tentando criar pasta: ${folderName} em ${parentId}`);
+    try {
+        const fileMetadata = {
+            'name': folderName,
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [parentId]
+        };
+        const file = await drive.files.create({
+            resource: fileMetadata,
+            fields: 'id'
+        });
+        console.log(`Pasta criada com sucesso. ID: ${file.data.id}`);
+        return file.data.id;
+    } catch (err) {
+        console.error(`ERRO ao criar pasta ${folderName}:`, err.message);
+        throw new Error(`Falha ao criar pasta no Drive: ${folderName}`);
+    }
+}
+
+/**
+ * Envia um buffer de arquivo para o Google Drive.
+ * @param {Buffer} buffer O buffer do arquivo.
+ * @param {string} fileName O nome do arquivo.
+ * @param {string} mimeType O MIME type do arquivo.
+ * @param {string} parentId O ID da pasta de destino.
+ * @returns {string} O ID do arquivo criado.
+ */
+async function uploadFile(buffer, fileName, mimeType, parentId) {
+    console.log(`Tentando upload do arquivo: ${fileName} para ${parentId}`);
+    try {
+        const bufferStream = new stream.PassThrough();
+        bufferStream.end(buffer);
+
+        const media = {
+            mimeType: mimeType,
+            body: bufferStream,
+        };
+        const fileMetadata = {
+            name: fileName,
+            parents: [parentId],
+        };
+
+        const file = await drive.files.create({
+            resource: fileMetadata,
+            media: media,
+            fields: 'id, webViewLink',
+        });
+        console.log(`Upload concluído. ID do arquivo: ${file.data.id}`);
+        return file.data.id;
+    } catch (err) {
+        console.error(`ERRO ao fazer upload do arquivo ${fileName}:`, err.message);
+        throw new Error(`Falha ao fazer upload do arquivo: ${fileName}`);
+    }
+}
+
+/**
+ * Gera o arquivo Resumo.docx como um Buffer.
+ * @param {Object} data Os dados do testemunho.
+ * @returns {Buffer} O buffer do documento DOCX.
+ */
+async function generateDocxBuffer(data) {
+    const doc = new Document({
+        sections: [{
+            children: [
+                new Paragraph({
+                    text: `Testemunho: ${data.titulo}`,
+                    heading: HeadingLevel.TITLE,
+                    alignment: AlignmentType.CENTER,
+                }),
+                new Paragraph({
+                    text: `Evangelismo: ${data.evangelismoTitulo}`,
+                    heading: HeadingLevel.HEADING_1,
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Resumo Detalhado:",
+                            bold: true,
+                        }),
+                    ],
+                    spacing: { after: 200 }
+                }),
+                new Paragraph({
+                    text: data.resumoText,
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: `Data de Registro: ${new Date().toLocaleDateString('pt-BR')}`,
+                            break: 1, // Quebra de linha
+                            italics: true,
+                        }),
+                    ],
+                }),
+            ],
+        }],
+    });
+
+    return await Packer.toBuffer(doc);
+}
+
+
+// --- Middlewares ---
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+
+// --- 1. POST /evangelismos: Cria Pasta Principal do Evangelismo ---
+app.post('/evangelismos', async (req, res) => {
+    const { titulo, data } = req.body; // data deve estar no formato AAAA-MM-DD
+    if (!titulo || !data) {
+        return res.status(400).send({ message: "Título e Data do Evangelismo são obrigatórios." });
+    }
+
+    const folderName = `${titulo} | ${data}`;
+    const evangelismoId = `e${db.nextEvangelismoId++}`;
+
+    try {
+        // 1. Cria a pasta principal do Evangelismo no Drive
+        const driveFolderId = await createFolder(folderName, ROOT_DRIVE_FOLDER_ID);
+
+        // 2. Salva o Evangelismo e o ID da pasta no DB
+        db.evangelismos[evangelismoId] = {
+            id: evangelismoId,
+            titulo: titulo,
+            data: data,
+            driveFolderId: driveFolderId
+        };
+
+        res.status(201).send({
+            message: "Evangelismo criado e pasta no Google Drive gerada.",
+            evangelismoId: evangelismoId,
+            driveFolderId: driveFolderId
+        });
+    } catch (error) {
+        console.error("Erro no endpoint /evangelismos:", error);
+        res.status(500).send({ message: "Erro interno ao processar Evangelismo.", details: error.message });
+    }
+});
+
+
+// --- 2. POST /testemunhos: Cria Estrutura de Pastas, Gera DOCX ---
+app.post('/testemunhos', async (req, res) => {
+    const { evangelismoId, tituloTestemunho, resumoText } = req.body;
+
+    if (!evangelismoId || !tituloTestemunho || !resumoText) {
+        return res.status(400).send({ message: "ID do Evangelismo, Título do Testemunho e Resumo são obrigatórios." });
+    }
+
+    const evangelismo = db.evangelismos[evangelismoId];
+    if (!evangelismo) {
+        return res.status(404).send({ message: "Evangelismo não encontrado." });
+    }
+
+    const testemunhoId = `t${db.nextTestemunhoId++}`;
+    const testemunhoFolderName = tituloTestemunho;
+    const evangelismoFolderId = evangelismo.driveFolderId;
+    const subFolderIds = {};
+
+    try {
+        // 1. Cria a pasta principal do Testemunho dentro da pasta do Evangelismo
+        const testemunhoFolderId = await createFolder(testemunhoFolderName, evangelismoFolderId);
+
+        // 2. Cria as subpastas necessárias
+        for (const name of ['Footshoot', 'Videos', 'Photo']) {
+            subFolderIds[name.toLowerCase()] = await createFolder(name, testemunhoFolderId);
+        }
+
+        // 3. Gera o arquivo Word (Resumo.docx)
+        const docxData = {
+            titulo: tituloTestemunho,
+            evangelismoTitulo: evangelismo.titulo,
+            resumoText: resumoText
+        };
+        const docxBuffer = await generateDocxBuffer(docxData);
+
+        // 4. Faz o upload do Resumo.docx para a pasta do Testemunho
+        const resumoFileId = await uploadFile(
+            docxBuffer,
+            'Resumo.docx',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            testemunhoFolderId
+        );
+
+        // 5. Salva os IDs no DB
+        db.testemunhos[testemunhoId] = {
+            id: testemunhoId,
+            evangelismoId: evangelismoId,
+            titulo: tituloTestemunho,
+            driveFolderId: testemunhoFolderId,
+            subFolderIds: subFolderIds,
+            resumoFileId: resumoFileId
+        };
+
+        res.status(201).send({
+            message: "Testemunho e toda a estrutura do Drive criados.",
+            testemunhoId: testemunhoId,
+            driveFolderId: testemunhoFolderId,
+            subFolderIds: subFolderIds
+        });
+    } catch (error) {
+        console.error("Erro no endpoint /testemunhos:", error);
+        res.status(500).send({ message: "Erro interno ao processar Testemunho.", details: error.message });
+    }
+});
+
+
+// --- 3. POST /upload: Recebe arquivo e Envia para Subpasta Correta ---
+// Usa o middleware `upload.single('file')` para processar o arquivo
+app.post('/upload', upload.single('file'), async (req, res) => {
+    const { testemunhoId, tipoMidia } = req.body; // tipoMidia deve ser 'photo', 'videos' ou 'footshoot'
+    
+    if (!req.file) {
+        return res.status(400).send({ message: "Nenhum arquivo enviado." });
+    }
+    if (!testemunhoId || !tipoMidia) {
+        return res.status(400).send({ message: "ID do Testemunho e Tipo de Mídia são obrigatórios." });
+    }
+
+    const testemunho = db.testemunhos[testemunhoId];
+    if (!testemunho) {
+        return res.status(404).send({ message: "Testemunho não encontrado." });
+    }
+
+    const targetFolderId = testemunho.subFolderIds[tipoMidia.toLowerCase()];
+    if (!targetFolderId) {
+        return res.status(400).send({ message: `Tipo de mídia inválido: ${tipoMidia}` });
+    }
+
+    try {
+        const fileBuffer = req.file.buffer;
+        const fileName = req.file.originalname;
+        const mimeType = req.file.mimetype;
+
+        // Faz o upload do arquivo para a subpasta correta
+        const fileId = await uploadFile(fileBuffer, fileName, mimeType, targetFolderId);
+
+        res.status(200).send({
+            message: "Upload de mídia concluído com sucesso.",
+            fileName: fileName,
+            fileId: fileId,
+            targetFolderId: targetFolderId
+        });
+    } catch (error) {
+        console.error("Erro no endpoint /upload:", error);
+        res.status(500).send({ message: "Erro interno ao realizar upload.", details: error.message });
+    }
+});
+
+
+// --- Inicialização do Servidor ---
+app.listen(port, () => {
+    console.log(`Servidor Node.js rodando na porta ${port}`);
+    console.log("Endpoints disponíveis: /evangelismos (POST), /testemunhos (POST), /upload (POST)");
+});

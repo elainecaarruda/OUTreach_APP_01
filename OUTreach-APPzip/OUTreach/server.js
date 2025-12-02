@@ -474,8 +474,8 @@ app.post('/api/testemunhos', async (req, res) => {
       INSERT INTO testemunhos (
         evangelismoId, title, personalInfo, profileInfo, eventInfo, decisionInfo,
         summaryText, photosUrls, videosUrls, driveFolderId, resumoDocxId,
-        videosFolderId, photosFolderId, summaryNative, summaryEnglish, nativeLanguage, resumoEnglishDocxId
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        videosFolderId, photosFolderId, summaryNative, summaryEnglish, nativeLanguage, resumoEnglishDocxId, date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -483,7 +483,7 @@ app.post('/api/testemunhos', async (req, res) => {
       decisionInfo || '', summaryText || '', photosUrls || '', videosUrls || '',
       driveFolderId, wordFileNative.data.id, videosFolder.data.id,
       photosFolder.data.id, summaryNative || '', summaryEnglish || '', nativeLanguage || 'pt-BR',
-      wordFileEnglish ? wordFileEnglish.data.id : null
+      wordFileEnglish ? wordFileEnglish.data.id : null, new Date().toISOString()
     );
 
     res.json({
@@ -582,7 +582,7 @@ app.post('/api/improve-testimony', async (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       console.error('❌ OPENAI_API_KEY não configurada');
-      return res.status(500).json({ error: 'API key não configurada' });
+      return res.status(500).json({ error: 'OPENAI_API_KEY is not set' });
     }
 
     console.log('📝 Processando texto de', text.length, 'caracteres...');
@@ -627,7 +627,7 @@ Texto final polido:`;
     if (!response.ok) {
       const error = await response.json();
       console.error('❌ OpenAI API Error:', error);
-      return res.status(response.status).json({ error: error.error?.message || 'Erro na API OpenAI' });
+      return res.status(response.status).json({ error: error.error?.message || 'OpenAI API error' });
     }
 
     const data = await response.json();
@@ -637,7 +637,7 @@ Texto final polido:`;
     res.json({ improvedText });
   } catch (error) {
     console.error('❌ Erro ao processar requisição:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    res.status(500).json({ error: error.message || 'Erro interno do servidor' });
   }
 });
 
@@ -653,7 +653,7 @@ app.post('/api/gerarTestemunho', async (req, res) => {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       console.error('❌ OPENAI_API_KEY não configurada');
-      return res.status(500).json({ error: 'API key não configurada' });
+      return res.status(500).json({ error: 'OPENAI_API_KEY is not set' });
     }
 
     console.log('✨ Gerando testemunho narrativo estruturado...');

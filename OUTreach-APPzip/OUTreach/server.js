@@ -573,7 +573,7 @@ app.post('/api/upload-media', upload.single('file'), async (req, res) => {
 
 app.post('/api/improve-testimony', async (req, res) => {
   try {
-    const { text, isStructured } = req.body;
+    const { text, isStructured, language = 'pt-BR' } = req.body;
 
     if (!text) {
       return res.status(400).json({ error: 'Texto não fornecido' });
@@ -585,12 +585,14 @@ app.post('/api/improve-testimony', async (req, res) => {
       return res.status(500).json({ error: 'OPENAI_API_KEY is not set' });
     }
 
-    console.log('📝 Processando texto de', text.length, 'caracteres...');
+    console.log('📝 Processando texto em', language, '- tamanho:', text.length, 'caracteres');
 
     let prompt = text;
     
     if (!isStructured) {
-      prompt = `Você é uma assistante especialista em organizar relatos e testemunhos.
+      // Get language-specific prompts
+      const prompts: Record<string, string> = {
+        'pt-BR': `Você é uma assistante especialista em organizar relatos e testemunhos.
 Recebi o seguinte texto ditado pelo usuário, que pode conter erros de gramática, pontuação ou frases desconexas:
 
 "${text}"
@@ -602,7 +604,36 @@ Sua tarefa é:
 4. Deixar o texto pronto para registro ou compartilhamento em mídia, newsletter ou relatório interno.
 5. Entregar apenas o texto final polido, sem explicações adicionais.
 
-Texto final polido:`;
+Texto final polido:`,
+        'en': `You are an expert assistant in organizing narratives and testimonies.
+I received the following text spoken by the user, which may contain grammar, punctuation, or disconnected sentence errors:
+
+"${text}"
+
+Your task is:
+1. Correct spelling and grammar.
+2. Rewrite the text in a clear, concise, and coherent manner.
+3. Maintain the essence of the account, preserving the emotional and spiritual context.
+4. Leave the text ready for registration or sharing on media, newsletter, or internal report.
+5. Deliver only the final polished text, without additional explanations.
+
+Final polished text:`,
+        'de': `Sie sind ein Spezialist für die Organisation von Berichten und Zeugnissen.
+Ich habe den folgenden Text erhalten, der vom Benutzer gesprochen wurde und möglicherweise Grammatik-, Interpunktions- oder Satzfehler enthält:
+
+"${text}"
+
+Ihre Aufgaben sind:
+1. Korrigieren Sie Rechtschreibung und Grammatik.
+2. Schreiben Sie den Text klar, prägnant und kohärent um.
+3. Bewahren Sie die Essenz des Berichts und erhalten Sie den emotionalen und spirituellen Kontext.
+4. Bereiten Sie den Text für die Registrierung oder das Teilen in Medien, Newsletter oder internen Berichten vor.
+5. Geben Sie nur den endgültigen polierten Text ohne zusätzliche Erklärungen ab.
+
+Endgültiger polierter Text:`
+      };
+      
+      prompt = prompts[language] || prompts['pt-BR'];
     }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

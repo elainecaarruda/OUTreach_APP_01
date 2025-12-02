@@ -6,14 +6,14 @@ export const useOpenAI = () => {
   const improveTestimonyText = async (text: string, language: string = 'pt-BR'): Promise<string> => {
     setIsProcessing(true);
     try {
-      console.log('📤 Enviando requisição para melhorar texto...');
+      console.log('📤 Enviando requisição para melhorar texto em', language);
       
       const response = await fetch('/api/improve-testimony', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, language }),
       });
 
       console.log('📥 Resposta do servidor:', response.status);

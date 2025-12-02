@@ -967,7 +967,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                       className="flex flex-col items-center justify-center gap-2 py-4 px-3 rounded-2xl border-2 border-slate-200 text-slate-600 hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-700 transition-all bg-white shadow-sm active:scale-95 group hover:shadow-md"
                     >
                       <Plus size={22} className="text-slate-300 group-hover:text-indigo-600" /> 
-                      <span className="font-bold text-xs uppercase tracking-wide leading-tight text-center">{opt}</span>
+                      <span className="font-bold text-xs uppercase tracking-wide leading-tight text-center">{t(opt as TranslationKey)}</span>
                     </button>
                   ))}
                 </div>
@@ -987,7 +987,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                       >
                         {/* Header com tipo de pessoa e botão remover */}
                         <div className="absolute top-4 right-4 flex gap-2 items-center">
-                           <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider">{person.profile_type}</span>
+                           <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider">{t(person.profile_type as TranslationKey)}</span>
                            <button 
                              onClick={() => removePerson(person.id)} 
                              className="p-1.5 rounded-full hover:bg-red-100 text-slate-300 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
@@ -1036,7 +1036,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                       <label key={state} className={`flex flex-col items-center justify-center p-4 rounded-2xl border cursor-pointer transition-all text-center h-24 relative overflow-hidden ${formData.emotional_states.includes(state) ? 'bg-slate-800 border-slate-800 text-white shadow-lg transform scale-[1.02]' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300 hover:shadow-md'}`}>
                         <input type="checkbox" className="hidden" checked={formData.emotional_states.includes(state)} onChange={() => toggleArrayItem('emotional_states', state)} />
                         {formData.emotional_states.includes(state) && <div className="absolute top-2 right-2"><CheckCircle size={16} className="text-green-400" /></div>}
-                        <span className="text-xs font-bold leading-tight">{state}</span>
+                        <span className="text-xs font-bold leading-tight">{t(state as TranslationKey)}</span>
                       </label>
                     ))}
                   </div>
@@ -1047,7 +1047,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                   <div className="space-y-3">
                     {INITIAL_ACTIONS.map(action => (
                       <div key={action} onClick={() => toggleArrayItem('initial_actions', action)} className={`px-5 py-4 rounded-2xl text-sm cursor-pointer transition-all border flex items-center justify-between group ${formData.initial_actions.includes(action) ? 'bg-indigo-600 text-white border-indigo-600 font-semibold shadow-md transform scale-[1.02]' : 'bg-white text-slate-600 border-slate-100 hover:border-indigo-300 hover:shadow-sm'}`}>
-                        {action}
+                        {t(action as TranslationKey)}
                         {formData.initial_actions.includes(action) ? <CheckCircle size={18} className="text-white" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200 group-hover:border-indigo-300"/>}
                       </div>
                     ))}
@@ -1100,7 +1100,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                     <div className={`w-6 h-6 rounded-full border-2 flex-shrink-0 flex items-center justify-center mb-2 transition-colors ${formData.events_during.includes(evt) ? 'bg-green-500 border-green-500' : 'border-slate-300 group-hover:border-green-400'}`}>
                        {formData.events_during.includes(evt) && <CheckCircle size={14} className="text-white" />}
                     </div>
-                    <span className={`text-sm font-bold leading-tight ${formData.events_during.includes(evt) ? 'text-green-800' : 'text-slate-600'}`}>{evt}</span>
+                    <span className={`text-sm font-bold leading-tight ${formData.events_during.includes(evt) ? 'text-green-800' : 'text-slate-600'}`}>{t(evt as TranslationKey)}</span>
                   </label>
                 ))}
               </div>
@@ -1155,7 +1155,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                  <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
                     <span className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg font-bold shadow-lg shadow-slate-200">{idx + 1}</span>
                     <div>
-                      <h3 className="font-bold text-slate-900 text-xl">{person.name || person.profile_type}</h3>
+                      <h3 className="font-bold text-slate-900 text-xl">{person.name || t(person.profile_type as TranslationKey)}</h3>
                       <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">{t('testimony_select_decisions')}</p>
                     </div>
                   </div>
@@ -1174,7 +1174,7 @@ const TestimonyComponent: React.FC<TestimonyProps> = ({ setPage }) => {
                      >
                        <div className="flex items-center gap-3">
                            <span className="text-2xl filter drop-shadow-sm">{d.emoji}</span>
-                           <span className={`text-sm font-bold ${isSelected ? 'text-green-900' : 'text-slate-700'}`}>{d.label}</span>
+                           <span className={`text-sm font-bold ${isSelected ? 'text-green-900' : 'text-slate-700'}`}>{t(d.label as TranslationKey)}</span>
                        </div>
                        {isSelected ? <CheckCircle size={20} className="text-green-600"/> : <div className="w-5 h-5 rounded-full border-2 border-slate-200" />}
                      </div>

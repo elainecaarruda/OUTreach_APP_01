@@ -24,12 +24,13 @@ interface PersonDetailsFormProps {
 }
 
 const RELIGION_OPTIONS = [
-  'Católica',
-  'Protestante',
-  'Espírita',
-  'Evangélica',
-  'Ateia/Agnóstica',
-  'Outra'
+  'testimony_religion_catholicism',
+  'testimony_religion_protestantism',
+  'testimony_religion_islam',
+  'testimony_religion_judaism',
+  'testimony_religion_hinduism',
+  'testimony_religion_atheism',
+  'testimony_religion_other'
 ];
 
 // Mapa de países com bandeiras (emojis)
@@ -220,7 +221,7 @@ export const PersonDetailsForm: React.FC<PersonDetailsFormProps> = ({ personData
           <option value="">👉 {t('testimony_form_religion_select' as TranslationKey)}</option>
           {RELIGION_OPTIONS.map(religion => (
             <option key={religion} value={religion}>
-              {religion}
+              {t(religion as TranslationKey)}
             </option>
           ))}
         </select>
